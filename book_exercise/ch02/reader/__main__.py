@@ -9,7 +9,9 @@ def main():
     path:str = f'{script_directory}/'
     file_name:str = 'the-verdict.txt'
     reader:Type[Reader] = Reader(path, file_name)
-    reader.get_text()
+    data:list = reader.get_data()
+    print('Data size: ', len(data))
+    print(data[:30])
 
 
 
