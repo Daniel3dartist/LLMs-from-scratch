@@ -7,6 +7,7 @@ from tokenizer import tokenizer, SimpleTokenizerV1
 
 
 def main():
+    print("="*100)
     tokenizer:Type[SimpleTokenizerV1]
     script_directory = str(Path(__file__).parent.parent.resolve()).replace('\\', '/')
     path:str = f'{script_directory}/'
@@ -16,13 +17,16 @@ def main():
     vocab:dict = DataManager().build_vocab(text)
     tokenizer = SimpleTokenizerV1(vocab)
     string_input:str = """
-        It's the last he painted, you know," 
-        Mrs. Gisburn said with pardonable pride.
+    It's the last he painted, you know," 
+    Mrs. Gisburn said with pardonable pride.
     """
+    print('='*100)
+    print('Input: "' + string_input + '"')
+    print('-'*100)
     ids:list = tokenizer.encode(string_input)
     print('ENCODER: ', ids)
-    print('='*80)
+    print('-'*100)
     print('DECODE: ', tokenizer.decode(ids))
-
+    print('='*100)
 
 main()
