@@ -1,5 +1,3 @@
-from tokenizer import tokenizer
-
 class Reader:
     def __init__(self, path:str='', file_name:str=''):
         self._path:str = path
@@ -20,7 +18,5 @@ class Reader:
         print(raw_text[:99])
 
         return raw_text
-    
-    def get_data(self) -> list:
-        txt:str = self.get_text()
-        return tokenizer(txt)
+
+
