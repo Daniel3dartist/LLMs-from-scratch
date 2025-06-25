@@ -1,12 +1,18 @@
 
-from tokenizer import tokenizer, SimpleTokenizerV1
+from tokenizer import tokenizer, SimpleTokenizerV1, SimpleTokenizerV2
 
 class DataManager:
     def build_vocab(self, txt:str) -> list:
-        preprocess:list = tokenizer(txt)
-        all_words:list = sorted(set(preprocess))
-        vocab_size:int = len(all_words)
+        preprocessed:list = tokenizer(txt)
+        all_tokens:list = sorted(list(set(preprocessed)))
+        all_tokens.extend(["<|endoftext|>", "<|unk|>"])
+        vocab_size:int = len(all_tokens)
         print('Vocab size: ', vocab_size)
-        vocab:dict = {token:interger for interger, token in enumerate(all_words)}
+        vocab:dict = {token:interger for interger, token in enumerate(all_tokens)}
+        #print('vocab items: ', vocab.items())
+        print('='*30)
+        for i, item in enumerate(list(vocab.items())[-5:]):
+            print(' - ',item)
+        print('='*30)
         return vocab
     
