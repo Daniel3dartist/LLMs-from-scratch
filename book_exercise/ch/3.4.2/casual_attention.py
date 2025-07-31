@@ -3,54 +3,55 @@ from typing import Type
 import torch
 import torch.nn as nn
 
-class SelfAttention_v1(nn.Module):
-    def __init__(self, d_in:int, d_out:int):
-        super().__init__()
-        self.W_query:Type[nn.Parameter] = nn.Parameter(torch.rand(d_in, d_out))
-        self.W_key:Type[nn.Parameter] = nn.Parameter(torch.rand(d_in, d_out))
-        self.W_value:Type[nn.Parameter] = nn.Parameter(torch.rand(d_in, d_out))
-    
-    def forward(self, x:Type[torch.Tensor]) -> Type[torch.Tensor]:
-        queries:Type[torch.Tensor] = x @ self.W_query
-        keys:Type[torch.Tensor] = x @ self.W_key
-        values:Type[torch.Tensor] = x @ self.W_value
-
-        attn_scores:Type[torch.Tensor] = queries @ keys.T
-        attn_weights:Type[torch.Tensor] = torch.softmax(
-            attn_scores / keys.shape[-1]**0.5,
-            dim=-1
-        )
-
-        context_vec:Type[torch.Tensor] = attn_weights @ values
-        return context_vec
-
-
-class SelfAttention_v2(nn.Module):
+class CasualAttention(nn.Module):
     def __init__(
             self, 
             d_in:int, 
             d_out:int, 
+            context_length:int,
+            dropout,
             qkv_bias:bool=False
             ):
         super().__init__()
+        self.d_out:int = d_out
         self.W_query:Type[nn.Linear] = nn.Linear(d_in, d_out, bias=qkv_bias)
         self.W_key:Type[nn.Linear] = nn.Linear(d_in, d_out, bias=qkv_bias)
         self.W_value:Type[nn.Linear] = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.dropout = nn.Dropout(dropout)
+        self.register_buffer(
+            'mask',
+            torch.triu(
+                torch.ones(
+                    context_length,
+                    context_length
+                ),
+                diagonal=1
+            )
+        )
 
     def forward(self, x:Type[torch.Tensor]):
+        b, num_tokens, d_in = x.shape
+        
         queries:Type[torch.Tensor] = self.W_query(x)
         keys:Type[torch.Tensor] = self.W_key(x)
         values:Type[torch.Tensor] = self.W_value(x)
 
-        attn_scores:Type[torch.Tensor] = queries @ keys.T
+        attn_scores:Type[torch.Tensor] = queries @ keys.transpose(1, 2)
+        attn_scores.masked_fill_(
+            self.mask.bool()[
+                :num_tokens, 
+                :num_tokens
+                ],
+            -torch.inf
+        )
         attn_weights:Type[torch.Tensor] = torch.softmax(
             attn_scores / keys.shape[-1]**0.5,
             dim=-1
         )
+        context_weights = self.dropout(attn_weights)
 
         context_vec = attn_weights @ values
         return context_vec
-
 
 if __name__ == '__main__':
     d_in:int = 3
@@ -66,11 +67,18 @@ if __name__ == '__main__':
     )
 
     torch.manual_seed(123)
-    sa_v1 = SelfAttention_v1(d_in, d_out)
-    print(sa_v1(inputs))
+
+    batch = torch.stack((inputs, inputs), dim=0)
+    context_lenght:int = batch.shape[1]
+
+    ca = CasualAttention(
+        d_in,
+        d_out,
+        context_lenght,
+        0.0
+        )
     
-    print('='*80)
-    
-    torch.manual_seed(789)
-    sa_v2 = SelfAttention_v2(d_in, d_out)
-    print(sa_v2(inputs))
+    context_vecs = ca(batch)
+
+    print(context_vecs)
+    print("context_vecs.shape:", context_vecs.shape)
