@@ -9,7 +9,7 @@ class CasualAttention(nn.Module):
             d_in:int, 
             d_out:int, 
             context_length:int,
-            dropout,
+            dropout:float,
             qkv_bias:bool=False
             ):
         super().__init__()
