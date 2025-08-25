@@ -1,6 +1,8 @@
 import torch
 from torch import nn
 
+from multiheadattention import MultiHeadAttention
+
 GPT_CONFG_124M = {
     "vocab_size": 50257,    # Vocabulary size
     "context_length": 1024, # Context length
@@ -78,6 +80,41 @@ class GELU(nn.Module):
         ))
 
 
+class ExampleDeepNeuralNetwork(nn.Module):
+    def __init__(self, layer_sizes, use_shortcut):
+        super().__init__()
+        self.use_shortcut = use_shortcut
+        self.layers = nn.ModuleList([
+            nn.Sequential(nn.Linear(layer_sizes[0], layer_sizes[1], GELU())),
+            nn.Sequential(nn.Linear(layer_sizes[1], layer_sizes[2], GELU())),
+            nn.Sequential(nn.Linear(layer_sizes[2], layer_sizes[3], GELU())),
+            nn.Sequential(nn.Linear(layer_sizes[3], layer_sizes[4], GELU())),
+            nn.Sequential(nn.Linear(layer_sizes[4], layer_sizes[5], GELU()))
+        ])
+    
+    def forward(self, x):
+        for layer in self.layers:
+            layer_output = layer(x)
+            if self.use_shortcut and x.shape == layer_output.shape:
+                x = x + layer_output
+            else:
+                x = layer_output
+        return x
+
+def print_gradients(model, x):
+    output = model(x)
+    target = torch.tensor([[0.]])
+
+    loss = nn.MSELoss()
+    loss = loss(output, target)
+
+    loss.backward()
+
+    for name, param in model.named_parameters():
+        if 'weight' in name:
+            print(f"{name} has gradient mean of {param.grad.abs().mean().item()}")
+
+
 class FeedForward(nn.Module):
     def __init__(self, cfg):
         super().__init__()
@@ -89,6 +126,39 @@ class FeedForward(nn.Module):
     
     def forward(self, x):
         return self.layers(x)
+
+
+class TransformerBlock(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.att = MultiHeadAttention(
+            d_in=cfg["emb_dim"],
+            d_out=cfg["emb_dim"],
+            context_length=cfg["context_length"],
+            num_heads=cfg["n_heads"],
+            dropout=cfg["drop_rate"],
+            qkv_bias=cfg["qkv_bias"]
+        )
+        self.ff = FeedForward(cfg)
+        self.norm1 = LayerNorm(cfg["emb_dim"])
+        self.norm2 = LayerNorm(cfg["emb_dim"])
+        self.drop_shortcut = nn.Dropout(cfg["drop_rate"])
+
+    def forward(self, x):
+        shortcut = x
+        x = self.norm1(x)
+        x = self.att(x)
+        x = self.drop_shortcut(x)
+        x = x + shortcut
+
+        shortcut = x
+        x = self.norm2(x)
+        x = self.ff(x)
+        x = self.drop_shortcut(x)
+        x = x + shortcut
+
+        return x
+
 
 if __name__ == "__main__":
     import tiktoken
@@ -180,3 +250,40 @@ if __name__ == "__main__":
     out = ffn(x)
     print(out.shape)
     
+    print('='*80)
+
+    from importlib.metadata import version
+
+    print("matplotlib version:", version("matplotlib"))
+    print("torch version:", version("torch"))
+    print("tiktoken version:", version("tiktoken"))
+
+    print('='*80)
+
+    layer_sizes = [3, 3, 3, 3, 3, 1]
+
+    sample_input = torch.tensor([[1.,0.,-1.]])
+
+    torch.manual_seed(123)
+    model_without_shortcut = ExampleDeepNeuralNetwork(
+        layer_sizes, use_shortcut=False
+    )
+    print_gradients(model_without_shortcut, sample_input)
+
+    print('-'*80)
+
+    torch.manual_seed(123)
+    model_without_shortcut = ExampleDeepNeuralNetwork(
+        layer_sizes, use_shortcut=True
+    )
+    print_gradients(model_without_shortcut, sample_input)
+
+    print('='*80)
+
+    torch.manual_seed(123)
+    x = torch.rand(2, 4, 768)
+    block = TransformerBlock(GPT_CONFG_124M)
+    output = block(x)
+
+    print("Input shape: ", x.shape)
+    print("Output shape: ", output.shape)
